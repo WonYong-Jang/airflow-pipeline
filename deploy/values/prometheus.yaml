@@ -1,0 +1,15 @@
+server:
+  extraFlags:
+    - web.enable-remote-write-receiver   # ★ remote_write 수신 엔드포인트 활성화
+  persistentVolume:
+    enabled: false        # 로컬 학습용이면 끔
+
+# 이 스택은 vmagent가 scrape하므로 prometheus 자체 scrape/alertmanager는 최소화
+alertmanager:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+kube-state-metrics:
+  enabled: false

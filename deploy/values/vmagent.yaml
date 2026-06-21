@@ -1,0 +1,13 @@
+remoteWrite:
+  - url: http://prometheus-server.monitoring.svc.cluster.local/api/v1/write
+
+# 차트가 기본적으로 inbound service를 만들지 않기 때문에 필요한 경우는 활성화
+#service:
+#  enabled: true
+
+config:
+  scrape_configs:
+    - job_name: airflow-statsd
+      static_configs:
+        - targets:
+            - statsd-exporter-prometheus-statsd-exporter.monitoring.svc.cluster.local:9102

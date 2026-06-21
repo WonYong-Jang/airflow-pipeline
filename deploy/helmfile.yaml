@@ -1,0 +1,31 @@
+repositories:
+  - name: apache-airflow
+    url: https://airflow.apache.org
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+  - name: vm
+    url: https://victoriametrics.github.io/helm-charts
+
+releases:
+  - name: prometheus
+    namespace: monitoring
+    chart: prometheus-community/prometheus
+    values: [values/prometheus.yaml]
+
+  - name: statsd-exporter
+    namespace: monitoring
+    chart: prometheus-community/prometheus-statsd-exporter
+    values: [values/statsd.yaml]
+
+  - name: vmagent
+    namespace: monitoring
+    chart: vm/victoria-metrics-agent
+    values: [values/vmagent.yaml]
+    needs: [monitoring/prometheus, monitoring/statsd-exporter]   # 순서 보장
+
+  - name: airflow
+    namespace: airflow
+    chart: apache-airflow/airflow
+    values: [values/airflow.yaml]
+    needs: [monitoring/statsd-exporter]
+
