@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vmagent
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"     # prometheus/statsd 다음
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  sources:
+    - repoURL: https://github.com/WonYong-Jang/airflow-pipeline.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://victoriametrics.github.io/helm-charts
+      chart: victoria-metrics-agent
+      targetRevision: 0.41.2
+      helm:
+        valueFiles:
+          - $values/deploy/values/vmagent.yaml
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
