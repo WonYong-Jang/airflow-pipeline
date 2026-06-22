@@ -1,0 +1,7 @@
+# VictoriaMetrics single-node(저장소 + 쿼리)
+# http://vmsingle.monitoring.svc.cluster.local:8428
+server:
+  fullnameOverride: vmsingle # 서비스: vmsingle.monitoring.svc.cluster.local
+  retentionPeriod: "1d"
+  persistentVolume:
+    enabled: false

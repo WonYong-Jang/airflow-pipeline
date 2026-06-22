@@ -1,16 +1,9 @@
-# 차트 내장 stats 끄기(외부 statsd-exporter 사용을 위한)
+# 차트 내장 statsd-exporter 사용
+# enabled: true 이면 airflow 네임스페이스에 prom/statsd-exporter를 함께 배포
 statsd:
-  enabled: false
-
-# airflow가 외부 statsd-exporter로 메트릭 전송하도록 설정
-# statsd_host는 실제 서비스 FQDN으로 맞춰야한다.
-# cross-namespace라서 짧은 이름이 아니라 .monitoring.svc.cluster.local 까지 적어야 한다.
-config:
-  metrics:
-    statsd_on: 'True'
-    statsd_host: 'statsd-exporter-prometheus-statsd-exporter.monitoring.svc.cluster.local'
-    statsd_port: '9125'
-    statsd_prefix: 'airflow'
+  enabled: true
+  # overrideMappings는 차트 기본 매핑을 전부 대체해야 하는 경우 사용
+  # extraMappings 는 차트 기본 매핑을 유지하면서 추가하는 경우 사용
 
 executor: "LocalExecutor"
 
