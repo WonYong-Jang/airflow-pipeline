@@ -1,5 +1,6 @@
 # 차트 내장 statsd-exporter 사용
 # enabled: true 이면 airflow 네임스페이스에 prom/statsd-exporter를 함께 배포
+# 내장 서비스 이름: <release>-statsd (예: airflow-statsd), 포트 9125(ingest)/9102(metrics)
 statsd:
   enabled: true
   # overrideMappings는 차트 기본 매핑을 전부 대체해야 하는 경우 사용

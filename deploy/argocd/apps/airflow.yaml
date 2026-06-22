@@ -4,7 +4,7 @@ metadata:
   name: airflow
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "2"     # statsd-exporter 다음
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   project: default
   destination:

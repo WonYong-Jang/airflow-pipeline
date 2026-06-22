@@ -2,6 +2,6 @@
 # http://vmsingle.monitoring.svc.cluster.local:8428
 server:
   fullnameOverride: vmsingle # 서비스: vmsingle.monitoring.svc.cluster.local
-  retentionPeriod: "1d"
+  retentionPeriod: "1w"
   persistentVolume:
     enabled: false
