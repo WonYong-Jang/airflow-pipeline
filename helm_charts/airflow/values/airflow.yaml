@@ -1,29 +1,31 @@
-# 차트 내장 statsd-exporter 사용
-# enabled: true 이면 airflow 네임스페이스에 prom/statsd-exporter를 함께 배포
-# 내장 서비스 이름: <release>-statsd (예: airflow-statsd), 포트 9125(ingest)/9102(metrics)
-statsd:
-  enabled: true
-  # overrideMappings는 차트 기본 매핑을 전부 대체해야 하는 경우 사용
-  # extraMappings 는 차트 기본 매핑을 유지하면서 추가하는 경우 사용
-
-# Bitnami가 2025년 무료 이미지 정책 변경으로 docker.io/bitnami 의 옛 태그를 삭제(manifest unknown).
-# 차트 기본 postgresql 이미지가 사라져 ImagePullBackOff 가 발생하므로,
-# 동일 태그가 보존된 bitnamilegacy 저장소로 오버라이드한다.
-postgresql:
-  image:
-    repository: bitnamilegacy/postgresql
-    tag: 16.1.0-debian-11-r15
-
-executor: "LocalExecutor"
-
-dags:
-  gitSync:
+# helm_charts/airflow 는 wrapper(umbrella) 차트이고 apache airflow 차트가
+# "airflow" 서브차트로 들어간다. 따라서 모든 값은 airflow: 하위에 두어야
+# 서브차트에 전달된다. (top-level 에 두면 무시되고 차트 기본값으로 동작)
+airflow:
+  # 차트 내장 statsd-exporter 사용
+  # enabled: true 이면 airflow 네임스페이스에 prom/statsd-exporter를 함께 배포
+  # 내장 서비스 이름: <release>-statsd (예: airflow-statsd), 포트 9125(ingest)/9102(metrics)
+  statsd:
     enabled: true
-    repo: https://github.com/WonYong-Jang/airflow-pipeline.git
-    branch: main
-    rev: HEAD
-    depth: 1
-    subPath: "dags"
-    period: 30s
+    # overrideMappings는 차트 기본 매핑을 전부 대체해야 하는 경우 사용
+    # extraMappings 는 차트 기본 매핑을 유지하면서 추가하는 경우 사용
 
+  executor: "LocalExecutor"
 
+  # Bitnami가 2025년 무료 이미지 정책 변경으로 docker.io/bitnami 의 옛 태그를 삭제(manifest unknown).
+  # 차트 기본 postgresql 이미지가 사라져 ImagePullBackOff 가 발생하므로,
+  # 동일 태그가 보존된 bitnamilegacy 저장소로 오버라이드한다.
+  postgresql:
+    image:
+      repository: bitnamilegacy/postgresql
+      tag: 16.1.0-debian-11-r15
+
+  dags:
+    gitSync:
+      enabled: true
+      repo: https://github.com/WonYong-Jang/airflow-pipeline.git
+      branch: main
+      rev: HEAD
+      depth: 1
+      subPath: "dags"
+      period: 30s
