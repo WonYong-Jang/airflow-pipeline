@@ -1,4 +1,7 @@
 configs:
   params:
     server.insecure: true
+  # kustomize 빌드 시 helm 호출 허용 (k8s_config 의 helmCharts/Helm inflation 용)
+  cm:
+    kustomize.buildOptions: --enable-helm
 

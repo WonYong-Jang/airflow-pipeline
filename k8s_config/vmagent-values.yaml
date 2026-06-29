@@ -1,0 +1,14 @@
+# 공식 victoria-metrics-agent 차트에 주입할 values.
+# kustomize helmCharts(Helm inflation)로 펼쳐져 monitoring Application 에 함께 배포된다.
+fullnameOverride: vmagent
+
+remoteWrite:
+  - url: http://vmsingle.monitoring.svc.cluster.local:8428/api/v1/write
+
+config:
+  scrape_configs:
+    - job_name: airflow-statsd
+      static_configs:
+        - targets:
+            # 차트 내장 statsd-exporter 서비스 (airflow 네임스페이스)
+            - airflow-statsd.airflow.svc.cluster.local:9102
