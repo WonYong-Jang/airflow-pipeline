@@ -10,6 +10,11 @@ airflow:
     # overrideMappings는 차트 기본 매핑을 전부 대체해야 하는 경우 사용
     # extraMappings 는 차트 기본 매핑을 유지하면서 추가하는 경우 사용
 
+  # 기존 메타데이터 DB가 airflow 3.2.2 스키마로 마이그레이션돼 있어, 차트 기본값
+  # 3.0.2 로 띄우면 다운그레이드 불일치(check-migrations 실패)가 난다. DB와 맞춰 3.2.2 로 핀.
+  airflowVersion: "3.2.2"
+  defaultAirflowTag: "3.2.2"
+
   executor: "LocalExecutor"
 
   # Bitnami가 2025년 무료 이미지 정책 변경으로 docker.io/bitnami 의 옛 태그를 삭제(manifest unknown).
