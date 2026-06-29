@@ -6,6 +6,14 @@ statsd:
   # overrideMappings는 차트 기본 매핑을 전부 대체해야 하는 경우 사용
   # extraMappings 는 차트 기본 매핑을 유지하면서 추가하는 경우 사용
 
+# Bitnami가 2025년 무료 이미지 정책 변경으로 docker.io/bitnami 의 옛 태그를 삭제(manifest unknown).
+# 차트 기본 postgresql 이미지가 사라져 ImagePullBackOff 가 발생하므로,
+# 동일 태그가 보존된 bitnamilegacy 저장소로 오버라이드한다.
+postgresql:
+  image:
+    repository: bitnamilegacy/postgresql
+    tag: 16.1.0-debian-11-r15
+
 executor: "LocalExecutor"
 
 dags:
