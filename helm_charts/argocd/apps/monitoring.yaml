@@ -1,0 +1,21 @@
+# 방법 1(통합): vmsingle + vmagent 를 raw manifest 로 작성해
+# 단일 ArgoCD Application 으로 관리한다. (k8s_config 는 kustomize 디렉터리)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io # App 삭제 시 자식 리소스도 cascade 삭제
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  source:
+    repoURL: https://github.com/WonYong-Jang/airflow-pipeline.git
+    targetRevision: main
+    path: k8s_config
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]

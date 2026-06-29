@@ -1,25 +1,24 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: victoriametrics
+  name: airflow
   namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io # App 삭제 시 자식 리소스도 cascade 삭제
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   project: default
   destination:
     server: https://kubernetes.default.svc
-    namespace: monitoring
+    namespace: airflow
   sources:
     - repoURL: https://github.com/WonYong-Jang/airflow-pipeline.git
       targetRevision: main
-      ref: values
-    - repoURL: https://victoriametrics.github.io/helm-charts
-      chart: victoria-metrics-single
-      targetRevision: 0.40.1
+      path: helm_charts/airflow
       helm:
         valueFiles:
-          - $values/deploy/values/victoriametrics.yaml
+          - values/airflow.yaml
   syncPolicy:
     automated: { prune: true, selfHeal: true }
     syncOptions: [CreateNamespace=true]

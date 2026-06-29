@@ -1,0 +1,24 @@
+# ① 의존성 해석 + 다운로드 + Chart.lock 생성/갱신
+# charts/ 에 .tgz를 받고 Chart.lock을 새로 씀 (버전 올릴 때 사용)
+# helm dependency update helm_charts/airflow
+
+# ② Chart.lock 기준으로 정확히 재현 다운로드 (CI/재현용, lock 안 바꿈)
+# helm dependency build helm_charts/airflow
+
+# ③ 현재 의존성 상태 확인
+# helm dependency list helm_charts/airflow
+
+# ④ 렌더링 검증 — 실제 매니페스트가 잘 나오는지 (배포 전 필수 확인)
+# helm template airflow helm_charts/airflow -f helm_charts/airflow/values/airflow.yaml
+
+# ⑤ 차트 문법/모범사례 검사
+# helm lint helm_charts/airflow
+apiVersion: v2
+name: airflow
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: airflow
+    repository: https://airflow.apache.org
+    version: 1.18.0

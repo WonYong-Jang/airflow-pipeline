@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/WonYong-Jang/airflow-pipeline.git
     targetRevision: main
-    path: deploy/argocd/apps
+    path: helm_charts/argocd/apps
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
