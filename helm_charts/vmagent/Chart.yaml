@@ -1,0 +1,20 @@
+# ① 의존성 해석 + 다운로드 + Chart.lock 생성/갱신 (버전 올릴 때)
+# helm dependency update helm_charts/vmagent
+
+# ② Chart.lock 기준으로 정확히 재현 다운로드 (CI/재현용, lock 안 바꿈)
+# helm dependency build helm_charts/vmagent
+
+# ③ 렌더링 검증 — 실제 매니페스트 확인 (배포 전 필수)
+# helm template vmagent helm_charts/vmagent -f helm_charts/vmagent/values/vmagent.yaml
+
+# ④ 차트 문법/모범사례 검사
+# helm lint helm_charts/vmagent
+apiVersion: v2
+name: vmagent
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: victoria-metrics-agent
+    repository: https://victoriametrics.github.io/helm-charts
+    version: 0.41.2

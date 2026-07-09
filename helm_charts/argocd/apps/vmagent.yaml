@@ -1,21 +1,25 @@
-# vmsingle(raw manifest) 를 k8s_config 소스로 관리한다.
-# vmagent 는 helm_charts/vmagent 차트 + 별도 Application(apps/vmagent.yaml)으로 분리됨.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: monitoring
+  name: vmagent
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io # App 삭제 시 자식 리소스도 cascade 삭제
+  annotations:
+    # vmsingle(monitoring) 가 먼저 뜬 뒤 vmagent 가 remoteWrite 대상으로 붙도록 이후 wave
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   project: default
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
-  source:
-    repoURL: https://github.com/WonYong-Jang/airflow-pipeline.git
-    targetRevision: main
-    path: k8s_config
+  sources:
+    - repoURL: https://github.com/WonYong-Jang/airflow-pipeline.git
+      targetRevision: main
+      path: helm_charts/vmagent
+      helm:
+        valueFiles:
+          - values/vmagent.yaml
   syncPolicy:
     automated: { prune: true, selfHeal: true }
     syncOptions: [CreateNamespace=true]

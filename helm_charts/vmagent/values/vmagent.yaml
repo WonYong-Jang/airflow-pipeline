@@ -1,14 +1,22 @@
-remoteWrite:
-  - url: http://vmsingle.monitoring.svc.cluster.local:8428/api/v1/write
+# helm_charts/vmagent 는 wrapper(umbrella) 차트이고 victoria-metrics-agent 차트가
+# "victoria-metrics-agent" 서브차트로 들어간다. 따라서 모든 값은
+# victoria-metrics-agent: 하위에 두어야 서브차트에 전달된다.
+# (top-level 에 두면 무시되고 차트 기본값으로 동작)
+victoria-metrics-agent:
+  # 서비스/리소스 이름을 vmagent 로 고정
+  fullnameOverride: vmagent
 
-# 차트가 기본적으로 inbound service를 만들지 않기 때문에 필요한 경우는 활성화
-#service:
-#  enabled: true
+  remoteWrite:
+    - url: http://vmsingle.monitoring.svc.cluster.local:8428/api/v1/write
 
-config:
-  scrape_configs:
-    - job_name: airflow-statsd
-      static_configs:
-        - targets:
-            # 차트 내장 statsd-exporter 서비스 (airflow 네임스페이스)
-            - airflow-statsd.airflow.svc.cluster.local:9102
+  # 차트가 기본적으로 inbound service를 만들지 않기 때문에 필요한 경우 활성화
+  #service:
+  #  enabled: true
+
+  config:
+    scrape_configs:
+      - job_name: airflow-statsd
+        static_configs:
+          - targets:
+              # 차트 내장 statsd-exporter 서비스 (airflow 네임스페이스)
+              - airflow-statsd.airflow.svc.cluster.local:9102

@@ -9,3 +9,5 @@ airflow-webserver.pid
 webserver_config.py
 airflow.cfg
 airflow.db
+# kustomize Helm inflation 이 렌더 시점에 pull 하는 차트 (커밋 대상 아님)
+k8s_config/charts/

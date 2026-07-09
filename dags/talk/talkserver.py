@@ -10,10 +10,10 @@ import time
     schedule=None,  # 수동 트리거 전용
     catchup=False,
     doc_md=__doc__,
-    default_args={"owner": "metrics-test2", "retries": 1},
-    tags=["metrics", "test"],
+    default_args={"owner": "kaven", "retries": 1},
+    tags=["talk", "test"],
 )
-def metrics_test2():
+def talk_server():
     @task
     def extract() -> int:
         """간단한 추출 단계 — duration 메트릭 생성을 위해 sleep."""
@@ -35,4 +35,4 @@ def metrics_test2():
     load(transform(extract()))
 
 
-metrics_test()
+talk_server()
