@@ -1,0 +1,134 @@
+# ────────────────────────────────────────────────────────────────────────────
+# DAG 배포(러너 시뮬레이션) — store/ + 심볼릭 링크 원자적 교체 방식
+#
+# 블로그의 "self-hosted 러너가 브랜치별 git clone → 준비 완료 후 심볼릭 원자적 swap"
+# 커스텀 배포를 GitHub 러너 등록 없이 in-cluster CronJob 으로 재현한다.
+#
+#   /opt/airflow/dags/                     ← dags_folder (airflow-dags PVC)
+#   ├── .airflowignore                     ← my-company/store 파싱 제외
+#   └── my-company/
+#       ├── store/                         ← 실제 clone(커밋 단위). 파싱 제외
+#       │   └── feature-11945/2e8003/dags/...
+#       └── feature-11945 -> store/feature-11945/2e8003/dags   ← 심볼릭(파싱 대상)
+#
+# 동작: 활성 브랜치(ConfigMap.branches)마다
+#   1) 원격 최신 커밋을 store/<branch>/<commit>/ 로 clone(준비, 멱등)
+#   2) 준비 완료 후 심볼릭 my-company/<branch> 를 새 커밋으로 교체(swap)
+#   3) 옛 커밋 store 정리, 비활성 브랜치(심볼릭+store) 정리
+#
+# 최초 1회 즉시 실행:
+#   kubectl -n airflow create job dag-clone-init --from=cronjob/dag-clone
+# ────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dag-clone
+  namespace: airflow
+data:
+  # 공백 구분 활성 브랜치. GitHub 원격(origin)에 실제 존재하는 브랜치여야 clone 가능.
+  # 멀티브랜치 재현: "main feature-11945 feature-12068" (각 브랜치를 push 해둘 것)
+  branches: "main"
+  # 심볼릭이 가리킬 브랜치 루트(클론 내부 경로).
+  #  - "dags": 이 레포처럼 dags/ 아래에 common_utils/ + DAG 파일이 있는 경우
+  #  - ""    : 레포 루트가 {common_utils/, dags/} 인 블로그식 레이아웃인 경우
+  branchRootSubpath: "dags"
+  clone.sh: |
+    #!/bin/sh
+    set -eu
+    DAGS_ROOT="/mnt/dags"
+    ROOT="$DAGS_ROOT/my-company"
+    STORE="$ROOT/store"
+    SUBPATH="${BRANCH_ROOT_SUBPATH:-dags}"
+    mkdir -p "$STORE"
+
+    # dags_folder 루트에 store 제외 .airflowignore 보장
+    IGNORE="$DAGS_ROOT/.airflowignore"
+    grep -q "^my-company/store$" "$IGNORE" 2>/dev/null || echo "my-company/store" >> "$IGNORE"
+
+    echo "[dag-clone] branches=[$BRANCHES] subpath=$SUBPATH"
+
+    for BR in $BRANCHES; do
+      FULL=$(git ls-remote "$REPO_URL" "refs/heads/$BR" | awk '{print $1}')
+      if [ -z "$FULL" ]; then
+        echo "[dag-clone] WARN branch '$BR' not on remote, skip"
+        continue
+      fi
+      CID=$(echo "$FULL" | cut -c1-6)
+      DEST="$STORE/$BR/$CID"
+
+      # 1) 새 커밋을 store 하위에 준비(clone). 이미 있으면 재사용(멱등)
+      if [ ! -d "$DEST/.git" ]; then
+        echo "[dag-clone] clone $BR@$CID"
+        rm -rf "$STORE/$BR/.tmp.$CID"
+        mkdir -p "$STORE/$BR"
+        git clone --depth 1 --branch "$BR" "$REPO_URL" "$STORE/$BR/.tmp.$CID"
+        mv "$STORE/$BR/.tmp.$CID" "$DEST"
+      else
+        echo "[dag-clone] reuse $BR@$CID"
+      fi
+
+      # 2) 준비 완료 후 심볼릭 링크 교체(swap)
+      #    -n: 기존 심볼릭-투-디렉토리를 따라가지 않고 링크 자체를 교체
+      TARGET="store/$BR/$CID/$SUBPATH"   # my-company/ 기준 상대경로
+      ( cd "$ROOT" && ln -sfn "$TARGET" "$BR" )
+      echo "[dag-clone] link $BR -> $TARGET"
+
+      # 3) 이 브랜치의 옛 커밋 정리(현재 CID만 유지)
+      for c in "$STORE/$BR"/*/; do
+        [ -d "$c" ] || continue
+        n=$(basename "$c")
+        [ "$n" = "$CID" ] || { echo "[dag-clone] gc $BR/$n"; rm -rf "$c"; }
+      done
+    done
+
+    # 4) 비활성 브랜치 정리(심볼릭 + store)
+    for d in "$ROOT"/*; do
+      [ -e "$d" ] || [ -L "$d" ] || continue
+      n=$(basename "$d")
+      [ "$n" = "store" ] && continue
+      if ! echo " $BRANCHES " | grep -q " $n "; then
+        echo "[dag-clone] prune $n"
+        rm -f "$d"; rm -rf "$STORE/$n"
+      fi
+    done
+    echo "[dag-clone] done"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dag-clone
+  namespace: airflow
+spec:
+  # 2분마다 활성 브랜치 동기화 (러너의 배포 주기 대체)
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: git-clone
+              image: alpine/git:2.45.2
+              command: ["/bin/sh", "/scripts/clone.sh"]
+              env:
+                - name: REPO_URL
+                  value: https://github.com/WonYong-Jang/airflow-pipeline.git
+                - name: BRANCHES
+                  valueFrom:
+                    configMapKeyRef: { name: dag-clone, key: branches }
+                - name: BRANCH_ROOT_SUBPATH
+                  valueFrom:
+                    configMapKeyRef: { name: dag-clone, key: branchRootSubpath }
+              volumeMounts:
+                - { name: dags, mountPath: /mnt/dags }
+                - { name: script, mountPath: /scripts }
+          volumes:
+            - name: dags
+              persistentVolumeClaim:
+                claimName: airflow-dags
+            - name: script
+              configMap: { name: dag-clone }

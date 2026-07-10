@@ -25,12 +25,17 @@ airflow:
       repository: bitnamilegacy/postgresql
       tag: 16.1.0-debian-11-r15
 
+  # [배포 방식 전환] gitSync(단일 브랜치) → 공유 PVC(멀티브랜치 clone) 커스텀 방식.
+  # in-cluster CronJob(deploy/dag-clone, "러너" 시뮬레이션)이 활성 브랜치를
+  #   /opt/airflow/dags/my-company/<branch>/  로 git clone 하고,
+  # scheduler/dag-processor/worker 가 같은 airflow-dags PVC 를 마운트해 파싱한다.
+  # (dags_folder = /opt/airflow/dags → my-company/<branch>/dags/... 재귀 스캔)
   dags:
     gitSync:
+      enabled: false
+    persistence:
       enabled: true
-      repo: https://github.com/WonYong-Jang/airflow-pipeline.git
-      branch: main
-      rev: HEAD
-      depth: 1
-      subPath: "dags"
-      period: 30s
+      # 차트가 'airflow-dags' 라는 이름의 PVC 를 생성한다(CronJob 이 이 이름을 참조).
+      size: 2Gi
+      # minikube 단일 노드라 RWO 로도 러너 Job + airflow 파드가 함께 마운트 가능
+      accessMode: ReadWriteOnce
