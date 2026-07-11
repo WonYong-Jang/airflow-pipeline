@@ -25,9 +25,11 @@ metadata:
   name: dag-clone
   namespace: airflow
 data:
-  # 공백 구분 활성 브랜치. GitHub 원격(origin)에 실제 존재하는 브랜치여야 clone 가능.
-  # 멀티브랜치 재현: "main feature-11945 feature-12068" (각 브랜치를 push 해둘 것)
-  branches: "main"
+  # 활성 브랜치. "*" 는 원격(origin)의 "모든" 브랜치를 자동 clone(정적 목록 관리 불필요).
+  #  → push 만 하면 다음 실행에서 자동 파싱. 기존(전체 스캔) 배포 방식의 문제 재현용.
+  #  → 주의: 브랜치 간 동일 dag_id 는 metadata DB 에서 서로 덮어씀(의도된 재현, 추후 처리).
+  # 특정 브랜치만 원하면 공백 구분으로 나열: "main feature-11945"
+  branches: "*"
   # 심볼릭이 가리킬 브랜치 루트(클론 내부 경로).
   #  - "dags": 이 레포처럼 dags/ 아래에 common_utils/ + DAG 파일이 있는 경우
   #  - ""    : 레포 루트가 {common_utils/, dags/} 인 블로그식 레이아웃인 경우
@@ -44,6 +46,12 @@ data:
     # dags_folder 루트에 store 제외 .airflowignore 보장
     IGNORE="$DAGS_ROOT/.airflowignore"
     grep -q "^my-company/store$" "$IGNORE" 2>/dev/null || echo "my-company/store" >> "$IGNORE"
+
+    # "*" (또는 빈 값) => 원격의 "모든" 브랜치를 동적으로 수집(정적 목록 관리 불필요).
+    #   git ls-remote --heads 출력 "<sha>\trefs/heads/<branch>" 에서 브랜치명만 추출.
+    if [ "$BRANCHES" = "*" ] || [ -z "$BRANCHES" ]; then
+      BRANCHES=$(git ls-remote --heads "$REPO_URL" | awk '{sub(/^refs\/heads\//,"",$2); print $2}')
+    fi
 
     echo "[dag-clone] branches=[$BRANCHES] subpath=$SUBPATH"
 
