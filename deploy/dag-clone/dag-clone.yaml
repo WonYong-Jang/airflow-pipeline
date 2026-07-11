@@ -52,6 +52,10 @@ data:
     if [ "$BRANCHES" = "*" ] || [ -z "$BRANCHES" ]; then
       BRANCHES=$(git ls-remote --heads "$REPO_URL" | awk '{sub(/^refs\/heads\//,"",$2); print $2}')
     fi
+    # 개행/탭/다중공백 구분을 단일 공백으로 정규화.
+    #  아래 prune 의 `echo " $BRANCHES " | grep " $n "`(공백 경계 매칭)가
+    #  개행 구분 목록에서 오탐해 방금 clone 한 브랜치를 지우는 것을 방지한다.
+    BRANCHES=$(echo $BRANCHES)
 
     echo "[dag-clone] branches=[$BRANCHES] subpath=$SUBPATH"
 
