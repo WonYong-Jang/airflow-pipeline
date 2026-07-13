@@ -63,4 +63,4 @@ airflow:
   # classpath 는 서브모듈 전체 경로(패키지 __init__ 이 airflow 를 import 하지 않도록 하기 위함).
   config:
     dag_processor:
-      dag_bundle_config_list: '[{"name":"prod","classpath":"feature_branch_bundle.git_bundle.GitCliDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","tracking_ref":"main","subdir":"dags","refresh_interval":300}},{"name":"feature","classpath":"feature_branch_bundle.git_bundle.FeatureBranchGitDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","base_branch":"main","branch_prefix":"feature/","subdir":"dags","changed_only":true,"refresh_interval":120}}]'
+      dag_bundle_config_list: '[{"name":"prod","classpath":"feature_branch_bundle.git_bundle.GitCliDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","tracking_ref":"main","subdir":"dags","refresh_interval":300}},{"name":"feature","classpath":"feature_branch_bundle.git_bundle.FeatureBranchGitDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","base_branch":"main","branch_prefix":"feature-","subdir":"dags","changed_only":true,"refresh_interval":120}}]'
