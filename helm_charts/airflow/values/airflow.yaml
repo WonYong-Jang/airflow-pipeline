@@ -17,6 +17,24 @@ airflow:
 
   executor: "LocalExecutor"
 
+  # [번들 코드 전달 = PVC 마운트] 커스텀 이미지 대신, DAG 번들 클래스
+  # (feature_branch_bundle 패키지)를 airflow-bundles PVC 로 마운트해 PYTHONPATH 에 노출한다.
+  #  - deploy/bundle-sync CronJob 이 레포의 bundles/feature_branch_bundle 를 PVC 로 복사
+  #  - 아래 volumes/volumeMounts/env 는 차트의 "모든 airflow 컨테이너 공통" 키라
+  #    scheduler/dag-processor/worker/api 전부에 동일하게 적용된다.
+  # (base 이미지는 apache/airflow:3.2.2 그대로 → images 오버라이드 불필요)
+  volumes:
+    - name: bundles
+      persistentVolumeClaim:
+        claimName: airflow-bundles
+  volumeMounts:
+    - name: bundles
+      mountPath: /opt/airflow/bundles
+      readOnly: true
+  env:
+    - name: PYTHONPATH
+      value: /opt/airflow/bundles
+
   # Bitnami가 2025년 무료 이미지 정책 변경으로 docker.io/bitnami 의 옛 태그를 삭제(manifest unknown).
   # 차트 기본 postgresql 이미지가 사라져 ImagePullBackOff 가 발생하므로,
   # 동일 태그가 보존된 bitnamilegacy 저장소로 오버라이드한다.
@@ -25,17 +43,24 @@ airflow:
       repository: bitnamilegacy/postgresql
       tag: 16.1.0-debian-11-r15
 
-  # [배포 방식 전환] gitSync(단일 브랜치) → 공유 PVC(멀티브랜치 clone) 커스텀 방식.
-  # in-cluster CronJob(deploy/dag-clone, "러너" 시뮬레이션)이 활성 브랜치를
-  #   /opt/airflow/dags/my-company/<branch>/  로 git clone 하고,
-  # scheduler/dag-processor/worker 가 같은 airflow-dags PVC 를 마운트해 파싱한다.
-  # (dags_folder = /opt/airflow/dags → my-company/<branch>/dags/... 재귀 스캔)
+  # Airflow 3 독립 dag-processor 컴포넌트 활성화(번들 파싱 담당).
+  dagProcessor:
+    enabled: true
+
+  # [배포 방식 전환] store/심볼릭 CronJob(deploy/dag-clone) → Airflow 3 DAG Bundle.
+  # gitSync/PVC 를 모두 끄고, 번들이 각 컴포넌트에서 직접 git clone 하여 파싱한다.
+  # (번들 저장소는 AIRFLOW_HOME/dag_bundles emptyDir, 재기동 시 재클론)
   dags:
     gitSync:
       enabled: false
     persistence:
-      enabled: true
-      # 차트가 'airflow-dags' 라는 이름의 PVC 를 생성한다(CronJob 이 이 이름을 참조).
-      size: 2Gi
-      # minikube 단일 노드라 RWO 로도 러너 Job + airflow 파드가 함께 마운트 가능
-      accessMode: ReadWriteOnce
+      enabled: false
+
+  # DAG Bundle 설정(airflow.cfg [dag_processor] 로 렌더링).
+  #  - prod    : main 브랜치 단일 추적. supports_versioning=True → DAG Run 이 커밋 SHA 로 고정.
+  #  - feature : feature/* 브랜치를 동적으로 감지, base(main) 대비 변경 DAG 만 노출,
+  #              dag_id 에 <브랜치슬러그>__ prefix + feature 태그 부여.
+  # classpath 는 서브모듈 전체 경로(패키지 __init__ 이 airflow 를 import 하지 않도록 하기 위함).
+  config:
+    dag_processor:
+      dag_bundle_config_list: '[{"name":"prod","classpath":"feature_branch_bundle.git_bundle.GitCliDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","tracking_ref":"main","subdir":"dags","refresh_interval":300}},{"name":"feature","classpath":"feature_branch_bundle.git_bundle.FeatureBranchGitDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","base_branch":"main","branch_prefix":"feature/","subdir":"dags","changed_only":true,"refresh_interval":120}}]'

@@ -35,4 +35,4 @@ def metrics_test2():
     load(transform(extract()))
 
 
-metrics_test()
+metrics_test2()

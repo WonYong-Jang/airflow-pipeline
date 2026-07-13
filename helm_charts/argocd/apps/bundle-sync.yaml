@@ -1,14 +1,15 @@
-# DAG 배포(러너 시뮬레이션) - deploy/dag-clone 의 CronJob/ConfigMap 을 관리.
-# airflow 차트가 airflow-dags PVC 를 만든 뒤(sync-wave 2) 배치되도록 이후 wave.
+# 번들 코드 동기화(PVC populate) — deploy/bundle-sync 관리.
+# airflow(wave 2)가 airflow-bundles PVC 를 마운트하므로, PVC 생성 + 최초 populate Job 이
+# 먼저 끝나도록 더 앞선 wave(1)에 둔다. (ArgoCD 는 앞 wave App 이 Healthy 될 때까지 대기)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: dag-clone
+  name: bundle-sync
   namespace: argocd
   finalizers:
-    - resources-finalizer.argocd.argoproj.io # App 삭제 시 자식 리소스도 cascade 삭제
+    - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   destination:
@@ -17,7 +18,7 @@ spec:
   source:
     repoURL: https://github.com/WonYong-Jang/airflow-pipeline.git
     targetRevision: main
-    path: deploy/dag-clone
+    path: deploy/bundle-sync
   syncPolicy:
     automated: { prune: true, selfHeal: true }
     syncOptions: [CreateNamespace=true]

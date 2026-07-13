@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "feature-branch-bundle"
+version = "0.1.0"
+description = "Custom Airflow 3 DAG bundles: single-ref prod + dynamic feature-branch bundle"
+requires-python = ">=3.9"
+# apache-airflow is provided by the base image; not pinned here on purpose.
+
+[tool.setuptools.packages.find]
+include = ["feature_branch_bundle*"]
