@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -92,7 +93,7 @@ class GitCliDagBundle(BaseDagBundle):
         ref = self.version or self.tracking_ref
         if self._work.exists():
             shutil.rmtree(self._work)
-        git_cli.export_tree(self._mirror, ref, self._work)
+        git_cli.export_tree(self._mirror, ref, self._work, subpath=self.subdir or None)
 
     def get_current_version(self) -> str | None:
         return git_cli.rev_parse(self._mirror, self.version or self.tracking_ref)
@@ -163,7 +164,14 @@ class FeatureBranchGitDagBundle(GitCliDagBundle):
     def _materialise_branch(self, branch: str, out: Path) -> None:
         slug = slugify(branch)
         dest = out / slug
-        git_cli.export_tree(self._mirror, branch, dest)
+        # Export ONLY the subdir (dags/) so the scan path never sees tests/,
+        # bundles/, scripts/ etc. — those would parse as spurious DAG errors.
+        try:
+            git_cli.export_tree(self._mirror, branch, dest, subpath=self.subdir or None)
+        except subprocess.CalledProcessError:
+            log.warning("branch %s has no %r path, skipping", branch, self.subdir)
+            shutil.rmtree(dest, ignore_errors=True)
+            return
 
         sub = dest / self.subdir if self.subdir else dest
         if not sub.is_dir():

@@ -59,17 +59,16 @@ def diff_name_only(mirror: Path, base_ref: str, ref: str) -> set[str]:
     return {line for line in out.splitlines() if line}
 
 
-def export_tree(mirror: Path, ref: str, dest: Path) -> None:
-    """Materialise the full tree of ``ref`` into ``dest`` (no .git metadata)."""
+def export_tree(mirror: Path, ref: str, dest: Path, subpath: str | None = None) -> None:
+    """Materialise ``ref`` into ``dest`` (no .git metadata).
+
+    When ``subpath`` is given, only that path is exported (git archive pathspec),
+    so bundles don't scan the whole repo (tests/, scripts/, ...) — only ``dags/``.
+    The archive keeps the path prefix, so ``subpath='dags'`` yields ``dest/dags/``.
+    """
     dest.mkdir(parents=True, exist_ok=True)
-    archive = subprocess.run(
-        ["git", "archive", ref],
-        cwd=str(mirror),
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["tar", "-x", "-C", str(dest)],
-        input=archive.stdout,
-        check=True,
-    )
+    args = ["git", "archive", ref]
+    if subpath:
+        args.append(subpath)
+    archive = subprocess.run(args, cwd=str(mirror), check=True, capture_output=True)
+    subprocess.run(["tar", "-x", "-C", str(dest)], input=archive.stdout, check=True)
