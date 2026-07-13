@@ -57,6 +57,24 @@ def test_export_tree(tmp_path, origin):
     assert not (dest / ".git").exists()  # clean, no metadata
 
 
+def test_export_tree_subpath_only(tmp_path, origin):
+    """subpath export must include only that dir, not the rest of the repo."""
+    # add a non-dags file so we can prove it's excluded
+    work = tmp_path / "src"
+    (work / "tests").mkdir()
+    (work / "tests" / "junk.py").write_text("x = 1\n")
+    _git(["add", "-A"], work)
+    _git(["commit", "-m", "junk"], work)
+
+    mirror = tmp_path / "m.git"
+    git_cli.clone_mirror(str(work), mirror)
+
+    dest = tmp_path / "out"
+    git_cli.export_tree(mirror, "main", dest, subpath="dags")
+    assert (dest / "dags" / "a.py").exists()
+    assert not (dest / "tests").exists()  # excluded ✓
+
+
 def test_rev_parse(tmp_path, origin):
     mirror = tmp_path / "m.git"
     git_cli.clone_mirror(str(origin), mirror)
