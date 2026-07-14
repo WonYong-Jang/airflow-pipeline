@@ -57,9 +57,9 @@ airflow:
       enabled: false
 
   # DAG Bundle 설정(airflow.cfg [dag_processor] 로 렌더링).
-  #  - prod    : main 브랜치 단일 추적. supports_versioning=True → DAG Run 이 커밋 SHA 로 고정.
   #  - feature : feature/* 브랜치를 동적으로 감지, base(main) 대비 변경 DAG 만 노출,
   #              dag_id 에 <브랜치슬러그>__ prefix + feature 태그 부여.
+  # (prod(main 단일 추적) 번들은 별도 helm chart 에서 구성 예정 → 여기서는 dev 전용으로 feature 만 둔다)
   # classpath 는 서브모듈 전체 경로(패키지 __init__ 이 airflow 를 import 하지 않도록 하기 위함).
   config:
     dag_processor:
@@ -67,4 +67,4 @@ airflow:
       # AIRFLOW_HOME 하위 전용 디렉토리로 고정. (dags_folder=/opt/airflow/dags 와는 별개)
       # 디스크 내용은 git 에서 언제든 재생성되는 "캐시"라 ephemeral 로 둔다(재기동 시 재clone).
       dag_bundle_storage_path: /opt/airflow/dag_bundles
-      dag_bundle_config_list: '[{"name":"prod","classpath":"feature_branch_bundle.git_bundle.GitCliDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","tracking_ref":"main","subdir":"dags","refresh_interval":300}},{"name":"feature","classpath":"feature_branch_bundle.git_bundle.FeatureBranchGitDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","base_branch":"main","branch_prefix":"feature-","subdir":"dags","changed_only":true,"refresh_interval":120}}]'
+      dag_bundle_config_list: '[{"name":"feature","classpath":"feature_branch_bundle.git_bundle.FeatureBranchGitDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","base_branch":"main","branch_prefix":"feature-","subdir":"dags","changed_only":true,"refresh_interval":120}}]'
