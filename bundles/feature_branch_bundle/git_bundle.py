@@ -1,16 +1,14 @@
-"""Airflow 3 DAG bundles backed by the git CLI.
+"""Airflow 3 feature-branch DAG bundle backed by the git CLI.
 
-Two bundles are provided and wired up via
+A single bundle is provided and wired up via
 ``[dag_processor] dag_bundle_config_list`` in airflow.cfg:
 
-* :class:`GitCliDagBundle` — tracks a single ref (used for ``prod`` -> ``main``).
-  Supports versioning, so each DAG run pins the exact commit SHA.
 * :class:`FeatureBranchGitDagBundle` — one bundle that dynamically discovers all
   branches matching ``branch_prefix``, exports each, prefixes every ``dag_id``
   with the branch slug and tags them, so open feature branches show up in the
-  dev instance side by side without colliding with prod DAGs.
+  dev instance side by side without colliding with each other.
 
-Both drive git through :mod:`.git_cli` (see that module for why the CLI).
+It drives git through :mod:`.git_cli` (see that module for why the CLI).
 """
 
 from __future__ import annotations
@@ -36,74 +34,7 @@ def slugify(branch: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", branch).strip("_")
 
 
-class GitCliDagBundle(BaseDagBundle):
-    """Single-ref git bundle. Exposes ``<checkout>/<subdir>`` as the parse path."""
-
-    supports_versioning = True
-
-    def __init__(
-        self,
-        *,
-        repo_url: str,
-        tracking_ref: str = "main",
-        subdir: str = "dags",
-        **kwargs,
-    ) -> None:
-        # name / refresh_interval / version are supplied by Airflow's bundle
-        # manager and forwarded to BaseDagBundle untouched.
-        super().__init__(**kwargs)
-        self.repo_url = repo_url
-        self.tracking_ref = tracking_ref
-        self.subdir = subdir.strip("/")
-
-    # --- storage layout ----------------------------------------------------
-    @property
-    def _root(self) -> Path:
-        try:
-            base = Path(self._dag_bundle_root_storage_path)
-        except Exception:  # pragma: no cover - fallback when conf unavailable
-            base = Path(tempfile.gettempdir()) / "dag_bundles"
-        return base / self.name
-
-    @property
-    def _mirror(self) -> Path:
-        return self._root / "repo.git"
-
-    @property
-    def _work(self) -> Path:
-        return self._root / "work"
-
-    @property
-    def path(self) -> Path:
-        return self._work / self.subdir if self.subdir else self._work
-
-    # --- lifecycle ---------------------------------------------------------
-    def initialize(self) -> None:
-        self._root.mkdir(parents=True, exist_ok=True)
-        if not self._mirror.exists():
-            git_cli.clone_mirror(self.repo_url, self._mirror)
-        super().initialize()
-        self._sync()
-
-    def refresh(self) -> None:
-        git_cli.fetch(self._mirror)
-        self._sync()
-
-    def _sync(self) -> None:
-        ref = self.version or self.tracking_ref
-        if self._work.exists():
-            shutil.rmtree(self._work)
-        git_cli.export_tree(self._mirror, ref, self._work, subpath=self.subdir or None)
-
-    def get_current_version(self) -> str | None:
-        return git_cli.rev_parse(self._mirror, self.version or self.tracking_ref)
-
-    def view_url(self, version: str | None = None) -> str | None:
-        base = self.repo_url[:-4] if self.repo_url.endswith(".git") else self.repo_url
-        return f"{base}/tree/{version or self.tracking_ref}"
-
-
-class FeatureBranchGitDagBundle(GitCliDagBundle):
+class FeatureBranchGitDagBundle(BaseDagBundle):
     """One bundle that tracks every ``branch_prefix`` branch at once.
 
     On each refresh it exports the full tree of every matching branch under
@@ -112,6 +43,9 @@ class FeatureBranchGitDagBundle(GitCliDagBundle):
     branch's ``subdir`` is added to ``sys.path`` so intra-branch imports such as
     ``from common_utils ... import`` resolve without any ``sys.path`` boilerplate
     inside the DAG files themselves.
+
+    Everything is driven from a single ``--mirror`` clone (a bare repo mirroring
+    all remote heads); trees are materialised with ``git archive`` (no .git).
     """
 
     # Multiple branches -> no single commit to pin a run against.
@@ -127,12 +61,27 @@ class FeatureBranchGitDagBundle(GitCliDagBundle):
         changed_only: bool = True,
         **kwargs,
     ) -> None:
-        super().__init__(
-            repo_url=repo_url, tracking_ref=base_branch, subdir=subdir, **kwargs
-        )
+        # name / refresh_interval / version are supplied by Airflow's bundle
+        # manager and forwarded to BaseDagBundle untouched.
+        super().__init__(**kwargs)
+        self.repo_url = repo_url
         self.base_branch = base_branch
         self.branch_prefix = branch_prefix
+        self.subdir = subdir.strip("/")
         self.changed_only = changed_only
+
+    # --- storage layout ----------------------------------------------------
+    @property
+    def _root(self) -> Path:
+        try:
+            base = Path(self._dag_bundle_root_storage_path)
+        except Exception:  # pragma: no cover - fallback when conf unavailable
+            base = Path(tempfile.gettempdir()) / "dag_bundles"
+        return base / self.name
+
+    @property
+    def _mirror(self) -> Path:
+        return self._root / "repo.git"
 
     @property
     def _out(self) -> Path:
@@ -142,9 +91,26 @@ class FeatureBranchGitDagBundle(GitCliDagBundle):
     def path(self) -> Path:
         return self._out
 
+    # --- lifecycle ---------------------------------------------------------
+    def initialize(self) -> None:
+        self._root.mkdir(parents=True, exist_ok=True)
+        if not self._mirror.exists():
+            git_cli.clone_mirror(self.repo_url, self._mirror)
+        super().initialize()
+        self._sync()
+
+    def refresh(self) -> None:
+        git_cli.fetch(self._mirror)
+        self._sync()
+
     def get_current_version(self) -> str | None:
         return None
 
+    def view_url(self, version: str | None = None) -> str | None:
+        base = self.repo_url[:-4] if self.repo_url.endswith(".git") else self.repo_url
+        return f"{base}/tree/{version or self.base_branch}"
+
+    # --- materialisation ---------------------------------------------------
     def _sync(self) -> None:
         out = self._out
         if out.exists():
@@ -192,7 +158,7 @@ class FeatureBranchGitDagBundle(GitCliDagBundle):
                 continue
             repo_rel = py.relative_to(dest).as_posix()
             if changed is not None and repo_rel not in changed:
-                # Unchanged DAG on this branch — prod already serves it, drop the
+                # Unchanged DAG on this branch — base already serves it, drop the
                 # duplicate so only the branch's actual changes appear.
                 py.unlink()
                 continue
