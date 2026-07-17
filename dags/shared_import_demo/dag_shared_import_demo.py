@@ -1,8 +1,8 @@
-"""[테스트 2] shared 모듈(common_utils) import → sys.path.append 없이 동작 확인.
+"""[테스트 2] self-contained DAG 폴더 안의 shared 모듈 import 확인.
 
-common_utils 를 **sys.path 조작 없이** 그대로 import 한다. 번들이 브랜치의 `dags/` 를
-파싱 경로로 노출하므로 boilerplate 없이 import 가 해석되어야 한다. common_utils 자체는
-수정하지 않고 그대로 사용한다(시나리오 2).
+DAG 폴더(``dags/shared_import_demo/``) 안에 helper 를 함께 담아 폴더 단위로 복사되어도
+import 가 깨지지 않게 한다. 번들이 복사 경로(bundle_path)를 PYTHONPATH 에 올리므로,
+폴더명을 앞에 붙인 절대 import 로 해석된다.
 
 dev 인스턴스에서는 feature_11946__shared_import_demo 로 등장하며, 태스크 실행 시
 runtime_variable() 값("hello_dags")을 로그로 출력한다.
@@ -11,7 +11,7 @@ runtime_variable() 값("hello_dags")을 로그로 출력한다.
 from airflow.sdk import dag, task
 from pendulum import datetime
 
-from common_utils.runtime_variable import runtime_variable
+from shared_import_demo.common_utils.runtime_variable import runtime_variable
 
 
 @dag(

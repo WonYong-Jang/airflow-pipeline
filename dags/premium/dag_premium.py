@@ -1,14 +1,15 @@
-"""Premium DAG — shared-module import demo.
+"""Premium DAG — self-contained shared-module import demo.
 
-Imports ``common_utils`` directly with NO ``sys.path`` boilerplate. This works
-because the DAG bundle exposes ``<checkout>/dags`` as its parse path, so ``dags/``
-is on ``sys.path`` and ``common_utils`` (at ``dags/common_utils``) is importable.
+The helper lives inside this DAG's own folder (``dags/premium/common_utils``) so
+the whole folder is copied as one unit by the feature-branch bundle. It is
+imported with the folder-qualified path, which resolves because the bundle path
+is on PYTHONPATH.
 """
 
 from airflow.sdk import dag, task
 from pendulum import datetime
 
-from common_utils.runtime_variable import runtime_variable
+from premium.common_utils.runtime_variable import runtime_variable
 
 
 @dag(
