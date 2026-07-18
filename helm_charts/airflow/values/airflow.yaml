@@ -39,17 +39,14 @@ airflow:
       tag: "3.2.2-git"
       pullPolicy: IfNotPresent
 
-  # 아래 volumes/volumeMounts/env 는 차트의 "모든 airflow 컨테이너 공통" 키라
+  # 아래 env 는 차트의 "모든 airflow 컨테이너 공통" 키라
   # scheduler/dag-processor/worker/api 전부에 동일하게 적용된다.
-  volumes:
-    # FeatureBranchGitDagBundle 이 복사한 DAG 폴더를 담는 쓰기 가능 경로.
-    # 각 파드가 자체적으로 refresh(=재복사)하므로 파드-로컬 emptyDir 로 충분하며,
-    # 재기동 시 초기화된다(캐시 성격).
-    - name: bundle-folders
-      emptyDir: {}
-  volumeMounts:
-    - name: bundle-folders
-      mountPath: /opt/airflow/bundle_folders
+  #
+  # [주의] bundle_folders 에 emptyDir 를 "정확히 그 지점"으로 마운트하면 안 된다.
+  # 번들 refresh() 가 shutil.rmtree(bundle_path) 로 이 경로 자체를 지우는데,
+  # 마운트 포인트는 삭제 불가라 EBUSY(Device or resource busy)로 dag-processor 가
+  # crashloop 한다. /opt/airflow 는 이미 쓰기 가능(컨테이너 fs)하므로 별도 볼륨 없이
+  # 번들이 이 디렉터리를 직접 만들고 지운다(파드-로컬 캐시, 재기동 시 재생성).
   env:
     # 복사된 DAG 폴더가 있는 경로. 번들 패키지는 이미지에 pip install 돼 있어
     # PYTHONPATH 에 둘 필요가 없고, 이 경로만 얹으면 복사된 DAG 폴더 내부의
