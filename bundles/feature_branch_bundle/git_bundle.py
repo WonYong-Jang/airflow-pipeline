@@ -144,6 +144,8 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
         with self.lock():
 
             # Cleanup old bundle
+            # Current method: Full Rebuild, not Incremental Update..
+            # TODO: Need to Check
             if self.bundle_path.exists():
                 shutil.rmtree(self.bundle_path)
             self.bundle_path.mkdir(parents=True, exist_ok=True)

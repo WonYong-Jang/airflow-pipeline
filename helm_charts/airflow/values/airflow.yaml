@@ -18,42 +18,33 @@ airflow:
   executor: "LocalExecutor"
 
   # [커스텀 이미지] FeatureBranchGitDagBundle 이 GitPython + git provider(GitHook)
-  # 를 쓰므로, apache/airflow:3.2.2 에 두 패키지를 baking 한 이미지를 사용한다.
+  # 를 쓰고, 번들 패키지(feature_branch_bundle) 자체도 이미지에 baking 한다.
+  # (별도 PVC sync 사이드카 불필요 → deploy/bundle-sync 제거됨)
   #   빌드: docker/airflow/Dockerfile (constraints 로 core/provider 버전 고정)
-  #   → 아래 repository/tag 는 빌드해서 push(또는 minikube image load) 한 값으로 맞출 것.
+  #   → 아래 repository/tag 는 빌드해서 push(또는 minikube image build) 한 값으로 맞출 것.
   images:
     airflow:
       repository: airflow-pipeline
       tag: "3.2.2-git"
       pullPolicy: IfNotPresent
 
-  # [번들 코드 전달 = PVC 마운트] 번들 클래스(feature_branch_bundle 패키지)는
-  # 이미지에 굽지 않고 airflow-bundles PVC 로 마운트해 PYTHONPATH 에 노출한다.
-  #  - deploy/bundle-sync CronJob 이 레포의 bundles/feature_branch_bundle 를 PVC 로 복사
-  #  - 아래 volumes/volumeMounts/env 는 차트의 "모든 airflow 컨테이너 공통" 키라
-  #    scheduler/dag-processor/worker/api 전부에 동일하게 적용된다.
+  # 아래 volumes/volumeMounts/env 는 차트의 "모든 airflow 컨테이너 공통" 키라
+  # scheduler/dag-processor/worker/api 전부에 동일하게 적용된다.
   volumes:
-    - name: bundles
-      persistentVolumeClaim:
-        claimName: airflow-bundles
     # FeatureBranchGitDagBundle 이 복사한 DAG 폴더를 담는 쓰기 가능 경로.
     # 각 파드가 자체적으로 refresh(=재복사)하므로 파드-로컬 emptyDir 로 충분하며,
     # 재기동 시 초기화된다(캐시 성격).
     - name: bundle-folders
       emptyDir: {}
   volumeMounts:
-    - name: bundles
-      mountPath: /opt/airflow/bundles
-      readOnly: true
     - name: bundle-folders
       mountPath: /opt/airflow/bundle_folders
   env:
-    # /opt/airflow/bundles      : feature_branch_bundle 패키지(번들 클래스)
-    # /opt/airflow/bundle_folders: FeatureBranchGitDagBundle 이 복사한 DAG 폴더들.
-    #   (plugins 와 달리 자동으로 PYTHONPATH 에 오르지 않으므로 명시적으로 추가해
-    #    복사된 DAG 폴더 내부의 helper import 가 해석되게 한다.)
+    # 복사된 DAG 폴더가 있는 경로. 번들 패키지는 이미지에 pip install 돼 있어
+    # PYTHONPATH 에 둘 필요가 없고, 이 경로만 얹으면 복사된 DAG 폴더 내부의
+    # helper import(<folder>.common_utils...)가 해석된다.
     - name: PYTHONPATH
-      value: /opt/airflow/bundles:/opt/airflow/bundle_folders
+      value: /opt/airflow/bundle_folders
 
   # Bitnami가 2025년 무료 이미지 정책 변경으로 docker.io/bitnami 의 옛 태그를 삭제(manifest unknown).
   # 차트 기본 postgresql 이미지가 사라져 ImagePullBackOff 가 발생하므로,
