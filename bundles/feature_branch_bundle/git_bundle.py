@@ -141,7 +141,7 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
         """
         Pull latest changes and rebuild bundle contents
         """
-        self._log.info("Refresh FeatureBranchGitDagBundle")
+        self._log.info("Refresh FeatureBranchGitDagBundle Start")
         with self.lock():
 
             # Cleanup old bundle
@@ -160,7 +160,7 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
                 self._repo.git.reset("--hard", f"origin/{self.base_branch}")
 
             for ref in self._repo.remotes.origin.refs:
-                self._log.debug(f"Ref: {ref}")
+                self._log.info(f"Target Ref: {ref}")
                 # remote refs are named "origin/<branch>"; strip the remote so the
                 # prefix filter and the id prefix use the clean branch name.
                 short = ref.remote_head  # e.g. "feature-11946"
