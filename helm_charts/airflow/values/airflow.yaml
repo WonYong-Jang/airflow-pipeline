@@ -17,6 +17,17 @@ airflow:
 
   executor: "LocalExecutor"
 
+  # [fernet key] 차트 기본값은 fernet-key 를 Helm "pre-install" 훅 Secret 으로 만든다
+  # (randAlphaNum, 설치 1회성). ArgoCD 는 이 훅을 매 sync 마다 before-hook-creation 으로
+  # 지우고 재생성하지 않아, 최초 생성분이 유실되면 모든 파드가
+  # `secret "airflow-fernet-key" not found` 로 죽는다.
+  # → 훅을 끄고(fernetKeySecretName 지정 시 템플릿 if 조건이 false) 우리가 관리하는
+  #   외부 Secret(airflow-fernet-key, key=fernet-key)을 참조하게 한다. 그 Secret 은
+  #   한 번 생성해두면 차트가 건드리지 않아 sync 에도 살아남는다.
+  #   생성: kubectl -n airflow create secret generic airflow-fernet-key \
+  #           --from-literal=fernet-key="$(python3 -c 'import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
+  fernetKeySecretName: airflow-fernet-key
+
   # [커스텀 이미지] FeatureBranchGitDagBundle 이 GitPython + git provider(GitHook)
   # 를 쓰고, 번들 패키지(feature_branch_bundle) 자체도 이미지에 baking 한다.
   # (별도 PVC sync 사이드카 불필요 → deploy/bundle-sync 제거됨)
