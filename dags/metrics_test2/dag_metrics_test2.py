@@ -11,7 +11,7 @@ import time
     catchup=False,
     doc_md=__doc__,
     default_args={"owner": "metrics-test2", "retries": 1},
-    tags=["metrics", "test"],
+    tags=["metrics", "test2"],
 )
 def metrics_test2():
     @task
