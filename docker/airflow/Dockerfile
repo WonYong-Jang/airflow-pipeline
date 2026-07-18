@@ -15,10 +15,10 @@
 #   minikube image ls | grep airflow-pipeline
 FROM apache/airflow:3.2.2
 
-# apache/airflow:3.2.2 defaults to Python 3.12; override PYTHON_VERSION if you
+# apache/airflow:3.2.2 defaults to Python 3.13; override PYTHON_VERSION if you
 # pin a different -pythonX.Y base tag.
 ARG AIRFLOW_VERSION=3.2.2
-ARG PYTHON_VERSION=3.12
+ARG PYTHON_VERSION=3.13
 
 # Install with the matching Airflow constraints file so nothing else in the
 # image (Airflow core / other providers) gets upgraded or downgraded.
@@ -30,5 +30,8 @@ RUN pip install --no-cache-dir \
 
 # Bake the bundle package so `feature_branch_bundle.git_bundle.FeatureBranchGitDagBundle`
 # resolves without any PYTHONPATH wiring or a PVC sync sidecar.
-COPY bundles /opt/airflow/bundles-src
-RUN pip install --no-cache-dir /opt/airflow/bundles-src
+# --chown=airflow:0 so setuptools can write its egg-info into the copied source
+# (the image runs as the non-root `airflow` user; a root-owned COPY would fail).
+COPY --chown=airflow:0 bundles /opt/airflow/bundles-src
+RUN pip install --no-cache-dir /opt/airflow/bundles-src \
+    && rm -rf /opt/airflow/bundles-src
