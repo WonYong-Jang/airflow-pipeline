@@ -150,6 +150,8 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
                 shutil.rmtree(self.bundle_path)
             self.bundle_path.mkdir(parents=True, exist_ok=True)
 
+            import time; time.sleep(20) # for test
+
             # Fetch all branches
             cm = self.hook.configure_hook_env() if self.hook else nullcontext()
             with cm:
