@@ -131,9 +131,10 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
         Return a dict of branch:commit_sha as the "version"
         """
         versions = {}
-        for ref in self._repo.refs:
-            if ref.name.startswith(self.branch_prefix):
-                versions[ref.name] = ref.commit.hexsha
+        for ref in self._repo.remotes.origin.refs:
+            short = ref.remote_head  # "feature-11946" (strip the origin/ prefix)
+            if short != "HEAD" and short.startswith(self.branch_prefix):
+                versions[short] = ref.commit.hexsha
         return str(versions)
 
     def refresh(self) -> bool:
@@ -150,8 +151,6 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
                 shutil.rmtree(self.bundle_path)
             self.bundle_path.mkdir(parents=True, exist_ok=True)
 
-            # import time; time.sleep(20) # for test
-
             # Fetch all branches
             cm = self.hook.configure_hook_env() if self.hook else nullcontext()
             with cm:
@@ -160,16 +159,19 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
                 self._repo.git.checkout(self.base_branch)
                 self._repo.git.reset("--hard", f"origin/{self.base_branch}")
 
-            for ref in self._repo.refs:
+            for ref in self._repo.remotes.origin.refs:
                 self._log.debug(f"Ref: {ref}")
+                # remote refs are named "origin/<branch>"; strip the remote so the
+                # prefix filter and the id prefix use the clean branch name.
+                short = ref.remote_head  # e.g. "feature-11946"
                 # Only consider branches with the given prefix
-                if not ref.name.startswith(self.branch_prefix):
+                if short == "HEAD" or not short.startswith(self.branch_prefix):
                     continue
 
-                # Clean branch name for use as prefix
-                branch_name = re.sub(r"[^A-Za-z0-9_\-\.]", "_", ref.name)  # safe prefix
+                # Clean branch name for use as prefix (short -> no "origin_" in dag_id)
+                branch_name = re.sub(r"[^A-Za-z0-9_\-\.]", "_", short)  # safe prefix
 
-                # Checkout the branch
+                # Checkout the branch (ref.name = "origin/<branch>"; detached, read-only)
                 self._repo.git.clean("-xdf")
                 self._repo.git.checkout(ref.name)
 
