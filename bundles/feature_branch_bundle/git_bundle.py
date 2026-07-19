@@ -129,7 +129,7 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
 
             self.repo_path.mkdir(parents=True, exist_ok=True)
             self.bundle_path.mkdir(parents=True, exist_ok=True)
-        self.refresh()
+        # self.refresh()
 
     def get_current_version(self) -> str:
         """
