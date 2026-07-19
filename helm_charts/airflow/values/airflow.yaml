@@ -87,4 +87,4 @@ airflow:
       # 디스크 내용은 git 에서 언제든 재생성되는 "캐시"라 ephemeral 로 둔다(재기동 시 재clone).
       dag_bundle_storage_path: /opt/airflow/dag_bundles
       # public repo 라 git_conn_id 없이(무인증) clone. private 전환 시 git_conn_id 추가.
-      dag_bundle_config_list: '[{"name":"feature","classpath":"feature_branch_bundle.git_bundle.FeatureBranchGitDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","base_branch":"main","branch_prefix":"feature-","refresh_interval":30}}]'
+      dag_bundle_config_list: '[{"name":"feature","classpath":"feature_branch_bundle.git_bundle.FeatureBranchGitDagBundle","kwargs":{"repo_url":"https://github.com/WonYong-Jang/airflow-pipeline.git","base_branch":"main","branch_prefix":"feature-","refresh_interval":120}}]'

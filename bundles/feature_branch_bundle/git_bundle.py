@@ -14,6 +14,11 @@ Prerequisites (see the discussion):
   * An Airflow git connection referenced by ``git_conn_id`` for auth.
   * A "one folder == one DAG" repo layout: ``dags/<name>/dag_<name>.py`` (a DAG
     folder is detected by containing a ``dag_*.py`` file).
+
+After Deployment
+- git push
+- minikube image build -t airflow-pipeline:3.2.2-git -f docker/airflow/Dockerfile .
+- kubectl -n airflow rollout restart deploy/airflow-dag-processor
 """
 
 from __future__ import annotations
@@ -151,8 +156,9 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
                 shutil.rmtree(self.bundle_path)
             self.bundle_path.mkdir(parents=True, exist_ok=True)
 
-            import time
-            time.sleep(20) # for test
+            # self._log.info("bundle_path rm sleep...")
+            # import time
+            # time.sleep(20) # for test
 
             # Fetch all branches
             cm = self.hook.configure_hook_env() if self.hook else nullcontext()
