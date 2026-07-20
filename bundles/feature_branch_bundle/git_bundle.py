@@ -79,6 +79,10 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
         # copied DAG packages (and their in-folder helpers) are importable — see
         # the PYTHONPATH env in the Helm values.
         self.bundle_path = Path("/opt/airflow/bundle_folders")
+        # Shared-util folder under dags/. Kept as a single repo source but vendored
+        # per-branch into the bundle so `from common_utils...` stays branch-isolated.
+        # Must match the import statements devs write.
+        self.common_dir = "common_utils"
 
         self._repo = None
 
@@ -129,6 +133,8 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
 
             self.repo_path.mkdir(parents=True, exist_ok=True)
             self.bundle_path.mkdir(parents=True, exist_ok=True)
+
+        super().initialize() # set is_initialized=True
         # self.refresh()
 
     def get_current_version(self) -> str:
@@ -170,15 +176,15 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
 
             for ref in self._repo.remotes.origin.refs:
                 self._log.info(f"Target Ref: {ref}")
-                # remote refs are named "origin/<branch>"; strip the remote so the
-                # prefix filter and the id prefix use the clean branch name.
                 short = ref.remote_head  # e.g. "feature-11946"
                 # Only consider branches with the given prefix
                 if short == "HEAD" or not short.startswith(self.branch_prefix):
                     continue
 
-                # Clean branch name for use as prefix (short -> no "origin_" in dag_id)
-                branch_name = re.sub(r"[^A-Za-z0-9_\-\.]", "_", short)  # safe prefix
+                branch_name = re.sub(r"[^A-Za-z0-9_\-\.]", "_", short)
+                pkg = re.sub(r"[^A-Za-z0-9_]", "_", short)
+
+                branch_root = self.bundle_path / pkg
 
                 # Checkout the branch (ref.name = "origin/<branch>"; detached, read-only)
                 self._repo.git.clean("-xdf")
@@ -209,37 +215,42 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
                     else:
                         self._log.debug("No Dag Root found!")
 
-                # Copy each changed DAG folder into bundle
                 self._log.info(f"Changed Dag folders: {changed_dag_folders}")
+                if not changed_dag_folders:
+                    continue
+
+                # Local top-level package names for this branch's DAG files;
+                # imports starting with one of these get namespaced under `pkg`.
+                local_names = {self.common_dir}
+
+                # Vendor this branch's shared utils (dags/common_utils) under the
+                # branch package root so `from common_utils...` resolves per-branch
+                # (isolated), regardless of the diff.
+                common_src = self.repo_path / "dags" / self.common_dir
+                if common_src.is_dir():
+                    shutil.copytree(
+                        common_src, branch_root / self.common_dir, dirs_exist_ok=True
+                    )
+
+                # Copy each changed DAG folder under the branch package root.
                 for dag_root in changed_dag_folders:
                     self._log.debug(f"Dag root: {dag_root}")
-
-                    # Copy entire folder
+                    local_names.add(Path(dag_root).parts[0])
                     src = self.repo_path / "dags" / f"{dag_root}"
-                    dst = self.bundle_path / f"{dag_root}"
-                    if dst.exists():
-                        self._log.warning(
-                            f"DAG folder {dag_root} already exists - possibly modified in multiple feature branches. Overwriting.",
-                            dag_root=str(dag_root),
-                            branch=ref.name,
-                            dst_path=str(dst),
-                        )
+                    dst = branch_root / f"{dag_root}"
                     shutil.copytree(src, dst, dirs_exist_ok=True)
 
-                    # Walk through all directories and subdirectories and ensure __init__.py exists
-                    for dirpath, _, _ in os.walk(self.bundle_path):
-                        # Construct the path for the __init__.py file
-                        init_file = Path(dirpath) / "__init__.py"
+                # Make branch_root and every subdirectory a regular package.
+                for dirpath, _, _ in os.walk(branch_root):
+                    (Path(dirpath) / "__init__.py").touch()
 
-                        # Create the file if it doesn't exist
-                        self._log.debug(f"Ensuring {init_file} exists...")
-                        init_file.touch()
-
-                    # Rewrite `dag_id` and `dag_display_name` in copied files to avoid collisions
-                    # Add specific tag (e.g., `feature` tag if feature in branch name; `dev` tag if dev in branch name)
-                    for pyfile in dst.rglob("*.py"):
-                        self.rewrite_dag_file(pyfile, branch_name)
-                    self._log.debug("Finished rewriting.")
+                # Rewrite dag_id/dag_display_name (branch prefix + tag) and
+                # namespace local imports (common_utils / DAG folders) under `pkg`.
+                for pyfile in branch_root.rglob("*.py"):
+                    if pyfile.name == "__init__.py":
+                        continue
+                    self.rewrite_dag_file(pyfile, branch_name, pkg, local_names)
+                self._log.debug("Finished rewriting.")
             self._log.info(f"Finished refreshing bundle at {self.bundle_path}")
             return True
 
@@ -261,9 +272,11 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
                 return parent.relative_to(repo_dags_root)
         return None
 
-    def rewrite_dag_file(self, path: Path, branch_name: str):
-        """Rewrite `dag_id` and `dag_display_name` in a single file by prefixing with branch_name.
-        Add specific tag to the tags list (e.g., `feature` tag if feature in branch name; `dev` tag if dev in branch name).
+    def rewrite_dag_file(
+        self, path: Path, branch_name: str, pkg: str, local_names: set[str]
+    ):
+        """Rewrite `dag_id`/`dag_display_name` (branch prefix + tag) and namespace
+        local top-level imports (`common_utils` and DAG folder names) under `pkg`.
         """
         branch_name = re.sub(r"[^A-Za-z0-9_\-\.]", "_", branch_name)
 
@@ -276,8 +289,9 @@ class FeatureBranchGitDagBundle(BaseDagBundle):
             self._log.debug(f"Skipping {path}, failed to parse: {e}")
             return
 
-        prefixer = RewriteDag(branch_name)
+        prefixer = RewriteDag(branch_name, pkg=pkg, local_names=local_names)
         new_tree = prefixer.visit(tree)
+        ast.fix_missing_locations(new_tree)
         new_code = ast.unparse(new_tree)
 
         with open(path, "w") as f:
@@ -289,13 +303,20 @@ class RewriteDag(ast.NodeTransformer):
     Furthermore, it adds specific tag to the tags list (e.g., `feature` tag if feature in branch name; `dev` tag if dev in branch name).
     """
 
-    def __init__(self, prefix: str):
-        """Initialize with the prefix to add.
+    def __init__(
+        self, prefix: str, pkg: str | None = None, local_names: set[str] | None = None
+    ):
+        """Initialize with the dag_id prefix and (optionally) the import namespace.
 
         Args:
-            prefix (str): The prefix to add to dag_id and dag_display_name.
+            prefix (str): Prefix added to dag_id / dag_display_name (may contain '-').
+            pkg (str | None): Python package slug (identifier) to namespace local imports under.
+            local_names (set[str] | None): Top-level import names to rewrite
+                (e.g. ``common_utils`` and DAG folder names).
         """
         self.prefix = prefix
+        self.pkg = pkg
+        self.local_names = local_names or set()
         if "feature" in self.prefix:
             self.tag = "feature"
         elif "dev" in self.prefix:
@@ -351,3 +372,27 @@ class RewriteDag(ast.NodeTransformer):
             new_decorators.append(dec)
         node.decorator_list = new_decorators
         return self.generic_visit(node)
+
+    def _namespace(self, module: str | None) -> str | None:
+        """Prefix an absolute module path with `pkg` when its top-level name is local."""
+        if not self.pkg or not module:
+            return None
+        top = module.split(".")[0]
+        if top in self.local_names and top != self.pkg:
+            return f"{self.pkg}.{module}"
+        return None
+
+    def visit_ImportFrom(self, node: ast.ImportFrom):
+        # Only absolute imports (level == 0); leave `from . import x` untouched.
+        if node.level == 0:
+            new_mod = self._namespace(node.module)
+            if new_mod:
+                node.module = new_mod
+        return node
+
+    def visit_Import(self, node: ast.Import):
+        for alias in node.names:
+            new_mod = self._namespace(alias.name)
+            if new_mod:
+                alias.name = new_mod
+        return node

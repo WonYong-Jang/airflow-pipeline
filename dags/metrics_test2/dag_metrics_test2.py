@@ -4,6 +4,13 @@ from airflow.sdk import dag, task
 from pendulum import datetime
 import time
 
+# --- TEMP DEBUG: dump parse-time sys.path so we can see what's importable ---
+import sys as _dbg_sys, os as _dbg_os
+print("PARSE_SYSPATH:", _dbg_sys.path, flush=True)
+print("PARSE_CWD:", _dbg_os.getcwd(), flush=True)
+print("PARSE_FILE:", __file__, flush=True)
+# --- END TEMP DEBUG ---
+
 
 @dag(
     start_date=datetime(2025, 1, 1),
@@ -13,7 +20,7 @@ import time
     default_args={"owner": "metrics-test2", "retries": 1},
     tags=["metrics", "test2"],
 )
-def metrics_test2():
+def metrics_test3():
     @task
     def extract() -> int:
         """간단한 추출 단계 — duration 메트릭 생성을 위해 sleep."""
@@ -35,4 +42,4 @@ def metrics_test2():
     load(transform(extract()))
 
 
-metrics_test2()
+metrics_test3()

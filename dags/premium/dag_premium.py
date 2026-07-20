@@ -1,15 +1,15 @@
-"""Premium DAG — self-contained shared-module import demo.
+"""Premium DAG — shared-module import demo.
 
-The helper lives inside this DAG's own folder (``dags/premium/common_utils``) so
-the whole folder is copied as one unit by the feature-branch bundle. It is
-imported with the folder-qualified path, which resolves because the bundle path
-is on PYTHONPATH.
+The helper now lives in the repo-wide ``dags/common_utils`` package. Dev code
+imports it as ``from common_utils...``; the feature-branch bundle vendors that
+package under each branch's namespace and rewrites the import, so branches stay
+isolated while sharing a single source folder.
 """
 
 from airflow.sdk import dag, task
 from pendulum import datetime
 
-from premium.common_utils.runtime_variable import runtime_variable
+from common_utils.runtime_variable import runtime_variable
 
 
 @dag(
