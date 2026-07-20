@@ -13,7 +13,7 @@ import time
     default_args={"owner": "metrics-test2", "retries": 1},
     tags=["metrics", "test2"],
 )
-def metrics_test2():
+def metrics_test3():
     @task
     def extract() -> int:
         """간단한 추출 단계 — duration 메트릭 생성을 위해 sleep."""
@@ -35,4 +35,4 @@ def metrics_test2():
     load(transform(extract()))
 
 
-metrics_test2()
+metrics_test3()
